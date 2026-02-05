@@ -14,6 +14,8 @@
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; color: #666; font-weight: 500; }
         input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        input.error-field { border-color: #dc3545; background-color: #fff5f5; }
+        .field-error { color: #dc3545; font-size: 12px; margin-top: 5px; display: none; }
         button { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
         button:hover { background: #0056b3; }
         button:disabled { background: #ccc; cursor: not-allowed; }
@@ -35,14 +37,17 @@
             <div class="form-group">
                 <label>Movie Name *</label>
                 <input type="text" id="movieName" placeholder="e.g., Inception">
+                <div class="field-error" id="nameError">Movie name is required</div>
             </div>
             <div class="form-group">
                 <label>Description *</label>
                 <input type="text" id="movieDescription" placeholder="e.g., Sci-fi thriller">
+                <div class="field-error" id="descriptionError">Description is required</div>
             </div>
             <div class="form-group">
                 <label>Release Year * (1888-2100)</label>
                 <input type="number" id="movieYear" placeholder="e.g., 2010" min="1888" max="2100">
+                <div class="field-error" id="yearError">Year must be between 1888 and 2100</div>
             </div>
             <button onclick="addMovie()">Add Movie</button>
             <div id="addResponse"></div>
@@ -54,6 +59,7 @@
             <div class="form-group">
                 <label>Movie ID *</label>
                 <input type="text" id="movieId" placeholder="Enter movie ID">
+                <div class="field-error" id="idError">Movie ID is required</div>
             </div>
             <button onclick="getMovie()">Get Movie</button>
             <div id="getResponse"></div>
@@ -63,16 +69,83 @@
     <script>
         const API_URL = '';
 
-        async function addMovie() {
+        function clearFieldError(fieldId, errorId) {
+            document.getElementById(fieldId).classList.remove('error-field');
+            document.getElementById(errorId).style.display = 'none';
+        }
+
+        function showFieldError(fieldId, errorId, message) {
+            const field = document.getElementById(fieldId);
+            const error = document.getElementById(errorId);
+            field.classList.add('error-field');
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        function clearAllErrors() {
+            clearFieldError('movieName', 'nameError');
+            clearFieldError('movieDescription', 'descriptionError');
+            clearFieldError('movieYear', 'yearError');
+        }
+
+        function validateAddMovieForm() {
+            clearAllErrors();
+            let isValid = true;
+            let errors = [];
+
             const name = document.getElementById('movieName').value.trim();
             const description = document.getElementById('movieDescription').value.trim();
             const year = document.getElementById('movieYear').value;
-            const responseDiv = document.getElementById('addResponse');
 
-            if (!name || !description || !year) {
-                responseDiv.innerHTML = '<div class="response error">Please fill in all fields</div>';
+            if (!name) {
+                showFieldError('movieName', 'nameError', 'Movie name is required');
+                errors.push('Movie name is missing');
+                isValid = false;
+            }
+
+            if (!description) {
+                showFieldError('movieDescription', 'descriptionError', 'Description is required');
+                errors.push('Description is missing');
+                isValid = false;
+            }
+
+            if (!year) {
+                showFieldError('movieYear', 'yearError', 'Release year is required');
+                errors.push('Release year is missing');
+                isValid = false;
+            } else {
+                const yearNum = parseInt(year);
+                if (yearNum < 1888 || yearNum > 2100) {
+                    showFieldError('movieYear', 'yearError', 'Year must be between 1888 and 2100');
+                    errors.push('Release year is invalid (must be 1888-2100)');
+                    isValid = false;
+                }
+            }
+
+            if (!isValid) {
+                const responseDiv = document.getElementById('addResponse');
+                responseDiv.innerHTML = `
+                    <div class="response error">
+                        <strong>✗ Please fix the following errors:</strong><br>
+                        ${errors.map(err => `• ${err}`).join('<br>')}
+                    </div>
+                `;
+            }
+
+            return isValid;
+        }
+
+        async function addMovie() {
+            const responseDiv = document.getElementById('addResponse');
+            responseDiv.innerHTML = '';
+
+            if (!validateAddMovieForm()) {
                 return;
             }
+
+            const name = document.getElementById('movieName').value.trim();
+            const description = document.getElementById('movieDescription').value.trim();
+            const year = document.getElementById('movieYear').value;
 
             try {
                 const response = await fetch(`${API_URL}/movies`, {
@@ -95,6 +168,7 @@
                     document.getElementById('movieName').value = '';
                     document.getElementById('movieDescription').value = '';
                     document.getElementById('movieYear').value = '';
+                    clearAllErrors();
                 } else {
                     responseDiv.innerHTML = `<div class="response error"><strong>✗ Error:</strong><br>${text}</div>`;
                 }
@@ -106,9 +180,12 @@
         async function getMovie() {
             const id = document.getElementById('movieId').value.trim();
             const responseDiv = document.getElementById('getResponse');
+            responseDiv.innerHTML = '';
+
+            clearFieldError('movieId', 'idError');
 
             if (!id) {
-                responseDiv.innerHTML = '<div class="response error">Please enter a movie ID</div>';
+                showFieldError('movieId', 'idError', 'Movie ID is required');
                 return;
             }
 
@@ -134,6 +211,12 @@
                 responseDiv.innerHTML = `<div class="response error"><strong>✗ Network Error:</strong><br>${error.message}</div>`;
             }
         }
+
+        // Clear errors on input
+        document.getElementById('movieName').addEventListener('input', () => clearFieldError('movieName', 'nameError'));
+        document.getElementById('movieDescription').addEventListener('input', () => clearFieldError('movieDescription', 'descriptionError'));
+        document.getElementById('movieYear').addEventListener('input', () => clearFieldError('movieYear', 'yearError'));
+        document.getElementById('movieId').addEventListener('input', () => clearFieldError('movieId', 'idError'));
 
         // Allow Enter key to submit
         document.getElementById('movieYear').addEventListener('keypress', (e) => {
